@@ -1,0 +1,7 @@
+services:
+  script:
+    container_name: SCRIPT
+    command: python -m script.main
+    build: 
+      dockerfile: Dockerfile
+      context: "."
