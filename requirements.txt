@@ -1,0 +1,2 @@
+asyncpg
+pydantic-settings
