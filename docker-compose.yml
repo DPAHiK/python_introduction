@@ -1,7 +1,7 @@
 services:
   script:
     container_name: SCRIPT
-    command: python -m script.main
+    command: sleep infinity
     build: 
       dockerfile: Dockerfile
       context: "."

@@ -7,6 +7,37 @@ parser.add_argument('--students', default='./data/students.json')
 parser.add_argument('--rooms', default='./data/rooms.json')
 parser.add_argument('--format', default='json')
 
+DB_QUERIES = [
+            """
+            select r.name, count(s.room) as students_count 
+            from rooms r inner join students s on r.id = s.room 
+            group by r.name;
+            """,
+
+            """
+            select r.name 
+            from rooms r inner join students s on r.id = s.room 
+            group by r.name 
+            order by avg(AGE(CURRENT_DATE, s.birthday)) asc 
+            limit 5;
+            """,
+
+            """
+            select r.name 
+            from rooms r inner join students s on r.id = s.room 
+            group by r.name 
+            order by max(AGE(CURRENT_DATE, s.birthday)) - min(AGE(CURRENT_DATE, s.birthday)) desc 
+            limit 5;
+            """,
+
+            """
+            select r.name 
+            from rooms r inner join students s on r.id = s.room 
+            group by r.name 
+            having count(distinct s.sex) > 1;
+            """
+]
+
 async def parse_students_birthday(students):
     for student in students:
         try:
@@ -14,9 +45,9 @@ async def parse_students_birthday(students):
         except (ValueError, TypeError): 
             student['birthday'] = datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
 
-async def main(students_path=None, rooms_path=None):
-    if students_path is None or rooms_path is None:
-        logger.error("students_path or rooms_path is not specified")
+async def main(students_path=None, rooms_path=None, format=None):
+    if students_path is None or rooms_path is None or format is None:
+        logger.error("None-type arguments for main script function")
         return
     
     logger.info("Starting loading data to DB...")
@@ -56,6 +87,14 @@ async def main(students_path=None, rooms_path=None):
     
     logger.info("Done loading data to DB")
 
+    logger.info("Executing queries...")
+
+    async with AsyncDB() as db:
+        for query, num in zip(DB_QUERIES, range(len(DB_QUERIES))):
+            await db.execute_and_save(query, format, num)
+
+    logger.info("Done executing queries")
+
 if __name__ == '__main__':
     args = parser.parse_args()
-    asyncio.run(main(students_path=args.students, rooms_path=args.rooms))
+    asyncio.run(main(students_path=args.students, rooms_path=args.rooms, format=args.format))

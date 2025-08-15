@@ -1,4 +1,4 @@
-import asyncpg
+import asyncpg, json
 from asyncpg import Connection
 from asyncpg.cursor import Cursor
 from typing import Optional, Any, List, Tuple
@@ -63,3 +63,15 @@ class AsyncDB:
     @handle_db_exceptions
     async def executemany(self, query: str, args: List[Tuple], *_, **kwargs) -> None:
         await self.conn.executemany(query, args, **kwargs)
+
+    @handle_db_exceptions
+    async def execute_and_save(self, query: str, file_format: str, result_num: str, *args, **kwargs) -> None:
+        result = []
+        file_output = {}
+
+        result = await self.conn.fetch(query, *args, **kwargs)
+
+        with open(f"./data/result_{result_num}.{file_format}", mode='w+') as f:
+            file_output["query"] = query
+            file_output["result"] = [dict(item) for item in result]
+            f.write(json.dumps(file_output))

@@ -1,6 +1,6 @@
 create table if not exists rooms(
     id integer unique primary key not null,
-    name varchar(32) not null
+    name varchar(32) unique not null
 );
 
 create table if not exists students(
