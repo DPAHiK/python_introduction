@@ -62,28 +62,27 @@ async def main(students_path=None, rooms_path=None, format=None):
         rooms_data = json.load(f)
 
     async with AsyncDB() as db:
-        for room in rooms_data:
-            await db.execute(
-                """
-                INSERT INTO rooms(id, name)
-                VALUES($1, $2)
-                """,
-                room.get('id', None),
-                room.get('name', None)
-            )
+        room_values = [(room.get('id', None), room.get('name', None)) for room in rooms_data]
+        await db.executemany(
+            """
+            INSERT INTO rooms(id, name)
+            VALUES($1, $2)
+            """,
+            room_values
+        )
         
-        for student in students_data:
-            await db.execute(
-                """
-                INSERT INTO students(id, name, sex, birthday, room)
-                VALUES($1, $2, $3, $4, $5)
-                """,
-                student.get('id', None),
-                student.get('name', None),
-                student.get('sex', None),
-                student.get('birthday', None),
-                student.get('room', None)
-            )
+        student_values = [
+        (student.get('id', None), student.get('name', None), student.get('sex', None),
+        student.get('birthday', None), student.get('room', None))
+        for student in students_data
+        ]
+        await db.executemany(
+            """
+            INSERT INTO students(id, name, sex, birthday, room)
+            VALUES($1, $2, $3, $4, $5)
+            """,
+            student_values
+        )
     
     logger.info("Done loading data to DB")
 
