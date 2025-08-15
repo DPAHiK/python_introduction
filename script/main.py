@@ -49,6 +49,9 @@ async def main(students_path=None, rooms_path=None, format=None):
     if students_path is None or rooms_path is None or format is None:
         logger.error("None-type arguments for main script function")
         return
+    if format != "xml" and format != "json":
+        logger.error("Invalid format argument")
+        return
     
     logger.info("Starting loading data to DB...")
     rooms_data = []

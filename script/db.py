@@ -5,6 +5,7 @@ from typing import Optional, Any, List, Tuple
 from functools import wraps
 from script.config import settings
 from script.logger import logger
+from dict2xml import dict2xml
 
 def handle_db_exceptions(func):
     @wraps(func)
@@ -66,12 +67,14 @@ class AsyncDB:
 
     @handle_db_exceptions
     async def execute_and_save(self, query: str, file_format: str, result_num: str, *args, **kwargs) -> None:
+        if file_format != "xml" and file_format != "json":
+            raise ValueError("Invalid format argument")
+            
         result = []
         file_output = {}
-
         result = await self.conn.fetch(query, *args, **kwargs)
 
         with open(f"./data/result_{result_num}.{file_format}", mode='w+') as f:
             file_output["query"] = query
             file_output["result"] = [dict(item) for item in result]
-            f.write(json.dumps(file_output))
+            f.write(json.dumps(file_output) if file_format == "json" else dict2xml(file_output))
