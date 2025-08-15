@@ -6,7 +6,8 @@ services:
       dockerfile: Dockerfile
       context: "."
     depends_on:
-      - db
+      db:
+        condition: service_healthy
   db:
     container_name: DB
     image: postgres
@@ -21,5 +22,10 @@ services:
     volumes:
       - ./config/init-schema.sql:/docker-entrypoint-initdb.d/10-init-schema.sql
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
 volumes:
   postgres_data:
