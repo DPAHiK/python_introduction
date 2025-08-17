@@ -1,6 +1,6 @@
 services:
   script:
-    container_name: SCRIPT
+    container_name: script
     command: sleep infinity
     build: 
       dockerfile: Dockerfile
@@ -9,7 +9,7 @@ services:
       db:
         condition: service_healthy
   db:
-    container_name: DB
+    container_name: db
     image: postgres
     env_file:
       - .env
