@@ -10,3 +10,5 @@ create table if not exists students(
     birthday TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     room integer REFERENCES rooms(id) ON DELETE SET NULL
 );
+
+create index idx_students_room on students(room);
