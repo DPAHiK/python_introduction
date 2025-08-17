@@ -1,56 +1,13 @@
 from script.db import AsyncDB
-from script.logger import logger
-import asyncio, json, argparse, datetime
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--students', default='./data/students.json')
-parser.add_argument('--rooms', default='./data/rooms.json')
-parser.add_argument('--format', default='json')
-
-DB_QUERIES = [
-            """
-            select r.name, count(s.room) as students_count 
-            from rooms r inner join students s on r.id = s.room 
-            group by r.name;
-            """,
-
-            """
-            select r.name 
-            from rooms r inner join students s on r.id = s.room 
-            group by r.name 
-            order by avg(AGE(CURRENT_DATE, s.birthday)) asc 
-            limit 5;
-            """,
-
-            """
-            select r.name 
-            from rooms r inner join students s on r.id = s.room 
-            group by r.name 
-            order by max(AGE(CURRENT_DATE, s.birthday)) - min(AGE(CURRENT_DATE, s.birthday)) desc 
-            limit 5;
-            """,
-
-            """
-            select r.name 
-            from rooms r inner join students s on r.id = s.room 
-            group by r.name 
-            having count(distinct s.sex) > 1;
-            """
-]
-
-async def parse_students_birthday(students):
-    for student in students:
-        try:
-            student['birthday'] = datetime.datetime.strptime(student.get('birthday', ''), '%Y-%m-%dT%H:%M:%S.%f')
-        except (ValueError, TypeError): 
-            student['birthday'] = datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
+from script import logger, DB_QUERIES, DATE_PATTERN, parser
+import asyncio, json, datetime, re
 
 async def main(students_path=None, rooms_path=None, format=None):
     if students_path is None or rooms_path is None or format is None:
         logger.error("None-type arguments for main script function")
         return
     if format != "xml" and format != "json":
-        logger.error("Invalid format argument")
+        logger.error("Invalid format argument (only json and xml are allowed)")
         return
     
     logger.info("Starting loading data to DB...")
@@ -59,7 +16,11 @@ async def main(students_path=None, rooms_path=None, format=None):
 
     with open(students_path) as f:
         students_data = json.load(f)
-        await parse_students_birthday(students_data)
+        students_data = [{**student,
+                           'birthday': datetime.datetime.strptime(student.get('birthday', ''), '%Y-%m-%dT%H:%M:%S.%f')
+                            if re.fullmatch(DATE_PATTERN, student.get('birthday', ''))
+                            else datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)}
+                            for student in students_data]
 
     with open(rooms_path) as f:
         rooms_data = json.load(f)
