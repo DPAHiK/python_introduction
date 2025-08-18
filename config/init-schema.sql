@@ -12,3 +12,5 @@ create table if not exists students(
 );
 
 create index idx_students_room on students(room);
+create index idx_students_room_birthday on students(room, birthday);
+create index idx_students_room_sex on students(room, sex);
