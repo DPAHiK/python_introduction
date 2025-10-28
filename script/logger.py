@@ -13,11 +13,10 @@ def setup_logger(name, log_level=logging.INFO, log_file=None):
 
     logger.addHandler(console_handler)
 
-    if log_file:
-        with open(log_file, 'a+'):
-            file_handler = logging.FileHandler(log_file)
-            file_handler.setFormatter(formatter)
-            logger.addHandler(file_handler)
+    with open(log_file, 'a+'):
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
 
     return logger
 
