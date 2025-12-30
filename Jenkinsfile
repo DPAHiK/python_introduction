@@ -41,7 +41,7 @@ pipeline {
                 script {
                     try {
                         // Create test database
-                        sh "createdb -h localhost -U postgres ${TEST_DB_NAME} || true"
+                        sh "PGPASSWORD=${PGPASSWORD} createdb -h localhost -U postgres ${TEST_DB_NAME} || true"
                         
                         // Run tests with coverage
                         sh """
@@ -73,7 +73,7 @@ pipeline {
                         )
                     } finally {
                         // Cleanup test database
-                        sh "dropdb -h localhost -U postgres ${TEST_DB_NAME} || true"
+                        sh "PGPASSWORD=${PGPASSWORD} dropdb -h localhost -U postgres ${TEST_DB_NAME} || true"
                     }
                 }
             }
