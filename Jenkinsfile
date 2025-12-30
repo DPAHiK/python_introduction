@@ -1,152 +1,92 @@
 pipeline {
-    agent any
-    
-    environment {
-        DOCKER_COMPOSE = 'docker-compose'
-        PROJECT_NAME = 'python-intro'
+  agent any
+
+  options {
+    timestamps()
+    disableConcurrentBuilds()
+  }
+
+  parameters {
+    booleanParam(name: 'DEPLOY_ENABLED', defaultValue: false, description: 'Enable deploy stage (usually only from main branch)')
+    string(name: 'DEPLOY_HOST', defaultValue: '', description: 'Deploy server host (e.g. 1.2.3.4)')
+    string(name: 'DEPLOY_PATH', defaultValue: '/opt/python_introduction', description: 'Remote path to deploy into')
+  }
+
+  environment {
+    COMPOSE_PROJECT_NAME = "python-intro-${env.BUILD_NUMBER}"
+  }
+
+  stages {
+    stage('Build') {
+      steps {
+        sh '''
+          set -euo pipefail
+
+          if [ ! -f .env ]; then
+            cat > .env <<'EOF'
+DB_HOST=db
+DB_PORT=5432
+DB_USER=postgres
+DB_PASS=postgres
+DB_NAME=postgres
+EOF
+          fi
+
+          docker-compose version
+          docker-compose build --pull
+        '''
+      }
     }
-    
-    stages {
-        stage('Checkout') {
-            steps {
-                // Clean workspace before checkout
-                cleanWs()
-                
-                // Checkout the code from SCM
-                checkout scm
-                
-                // Print the current branch and commit
-                sh 'git branch'
-                sh 'git rev-parse HEAD'
-            }
-        }
-        
-        stage('Build') {
-            steps {
-                script {
-                    // Build Docker images
-                    sh "${DOCKER_COMPOSE} -p ${PROJECT_NAME} build"
-                }
-            }
-        }
-        
-        stage('Test') {
-            environment {
-                // Set test environment variables
-                PYTHONPATH = "${WORKSPACE}"
-                TEST_DB_NAME = "test_${BUILD_NUMBER}"
-            }
-            
-            steps {
-                script {
-                    try {
-                        // Create test database
-                        sh "PGPASSWORD=${PGPASSWORD} createdb -h localhost -U postgres ${TEST_DB_NAME} || true"
-                        
-                        // Run tests with coverage
-                        sh """
-                        ${DOCKER_COMPOSE} -p ${PROJECT_NAME} run --rm \
-                            -e DB_NAME=${TEST_DB_NAME} \
-                            -e PYTHONPATH=/app \
-                            app sh -c \
-                            "pip install -r requirements-dev.txt && \
-                             python -m pytest tests/ -v --cov=script --cov-report=xml:coverage.xml"
-                        """
-                        
-                        // Archive test results
-                        junit '**/test-reports/*.xml'
-                        
-                        // Publish coverage report
-                        publishHTML(target: [
-                            allowMissing: false,
-                            alwaysLinkToLastBuild: false,
-                            keepAll: true,
-                            reportDir: 'htmlcov',
-                            reportFiles: 'index.html',
-                            reportName: 'Coverage Report'
-                        ])
-                        
-                        // Publish coverage to Jenkins
-                        publishCoverage(
-                            adapters: [coberturaAdapter('coverage.xml')],
-                            sourceFileResolver: sourceFiles('STORE_LAST_BUILD')
-                        )
-                    } finally {
-                        // Cleanup test database
-                        sh "PGPASSWORD=${PGPASSWORD} dropdb -h localhost -U postgres ${TEST_DB_NAME} || true"
-                    }
-                }
-            }
-            
-            post {
-                always {
-                    // Clean up any running containers
-                    sh "${DOCKER_COMPOSE} -p ${PROJECT_NAME} down --remove-orphans"
-                }
-            }
-        }
-        
-        stage('Deploy') {
-            when {
-                // Only deploy from main branch
-                branch 'main'
-            }
-            
-            steps {
-                script {
-                    // Push images to registry (example for Docker Hub)
-                    withCredentials([usernamePassword(
-                        credentialsId: 'docker-hub-credentials',
-                        usernameVariable: 'DOCKER_USERNAME',
-                        passwordVariable: 'DOCKER_PASSWORD'
-                    )]) {
-                        sh """
-                        # Login to Docker Hub
-                        echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
-                        
-                        # Tag and push images
-                        ${DOCKER_COMPOSE} -p ${PROJECT_NAME} build
-                        
-                        # Example: Tag and push the app image
-                        docker tag ${PROJECT_NAME}_app ${DOCKER_USERNAME}/${PROJECT_NAME}:${BUILD_NUMBER}
-                        docker tag ${PROJECT_NAME}_app ${DOCKER_USERNAME}/${PROJECT_NAME}:latest
-                        
-                        docker push ${DOCKER_USERNAME}/${PROJECT_NAME}:${BUILD_NUMBER}
-                        docker push ${DOCKER_USERNAME}/${PROJECT_NAME}:latest
-                        """
-                    }
-                    
-                    // Example: Deploy to a server using SSH
-                    sshagent(['deploy-key']) {
-                        sh """
-                        # Example deployment commands
-                        ssh -o StrictHostKeyChecking=no user@your-server.com \
-                            "docker-compose -f /path/to/project/docker-compose.prod.yml pull && \
-                             docker-compose -f /path/to/project/docker-compose.prod.yml up -d"
-                        """
-                    }
-                }
-            }
-        }
-    }
-    
-    post {
+
+    stage('Test') {
+      steps {
+        sh '''
+          set -euo pipefail
+
+          docker-compose up -d --build
+          docker-compose ps
+
+          docker exec script python -m pytest -q tests/
+        '''
+      }
+      post {
         always {
-            // Clean up workspace
-            cleanWs()
-            
-            // Clean up Docker resources
-            sh "${DOCKER_COMPOSE} -p ${PROJECT_NAME} down --remove-orphans --volumes"
+          sh '''
+            set +e
+            docker-compose logs --no-color || true
+            docker-compose down -v || true
+          '''
         }
-        
-        success {
-            // Notify on success
-            echo 'Build, test, and deploy completed successfully!'
-        }
-        
-        failure {
-            // Notify on failure
-            echo 'Pipeline failed. Please check the logs for details.'
-        }
+      }
     }
+
+    stage('Deploy') {
+      when {
+        allOf {
+          branch 'main'
+          expression { return params.DEPLOY_ENABLED }
+          expression { return params.DEPLOY_HOST?.trim() }
+        }
+      }
+      steps {
+        withCredentials([
+          sshUserPrivateKey(credentialsId: 'deploy-ssh-key', keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER')
+        ]) {
+          sh '''
+            set -euo pipefail
+
+            tar -czf app.tgz --exclude .git --exclude .pytest_cache --exclude __pycache__ .
+
+            scp -i "$SSH_KEY" -o StrictHostKeyChecking=no app.tgz "$SSH_USER@${DEPLOY_HOST}:/tmp/python_introduction-${BUILD_NUMBER}.tgz"
+
+            ssh -i "$SSH_KEY" -o StrictHostKeyChecking=no "$SSH_USER@${DEPLOY_HOST}" \
+              "mkdir -p '${DEPLOY_PATH}' && \
+               tar -xzf '/tmp/python_introduction-${BUILD_NUMBER}.tgz' -C '${DEPLOY_PATH}' && \
+               cd '${DEPLOY_PATH}' && \
+               docker-compose up -d --build"
+          '''
+        }
+      }
+    }
+  }
 }
