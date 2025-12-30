@@ -45,15 +45,25 @@ EOF
           docker exec script python -m pytest -q tests/
         '''
       }
+      post {
+        always {
+          sh '''
+            #!/usr/bin/env bash
+            set +e
+            docker-compose down -v || true
+          '''
+        }
+      }
     }
 
     
-    stage('Cleanup') {
+    stage('Deploy') {
       steps {
         sh '''
           #!/usr/bin/env bash
           set +e
-          docker-compose down -v || true
+          docker-compose up -d
+          docker-compose ps
         '''
       }
     }
