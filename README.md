@@ -1,7 +1,11 @@
 Запуск:
+
+```bash
 docker-compose up -d --build
+```
 
 Чтобы выполнить скрипт:
+```bash
 docker exec script python -m script.main
 
 Запуск тестов:
