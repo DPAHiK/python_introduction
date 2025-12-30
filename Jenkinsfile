@@ -61,7 +61,7 @@ EOF
       steps {
         sh '''
           #!/usr/bin/env bash
-          set +e
+          set -eu
           docker-compose up -d
           docker-compose ps
         '''
