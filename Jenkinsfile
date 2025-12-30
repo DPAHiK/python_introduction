@@ -39,7 +39,7 @@ EOF
           #!/usr/bin/env bash
           set -eu
 
-          docker-compose up -d --build
+          docker-compose up -d
           docker-compose ps
 
           docker exec script python -m pytest -q tests/
