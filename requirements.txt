@@ -1,3 +1,8 @@
 asyncpg
 pydantic-settings
 dict2xml
+pytest
+pytest-mock
+pytest-asyncio
+PyYAML
+types-PyYAML
